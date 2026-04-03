@@ -408,6 +408,16 @@ function readRawUsageTotals(usageJson: unknown): UsageTotals | null {
   };
 }
 
+export function findLatestRawUsageTotalsFromRuns(
+  usageJsonRows: Array<unknown>,
+): UsageTotals | null {
+  for (const usageJson of usageJsonRows) {
+    const usage = readRawUsageTotals(usageJson);
+    if (usage) return usage;
+  }
+  return null;
+}
+
 function deriveNormalizedUsageDelta(current: UsageTotals | null, previous: UsageTotals | null): UsageTotals | null {
   if (!current) return null;
   if (!previous) return { ...current };
@@ -876,8 +886,23 @@ export function heartbeatService(db: Db) {
       };
     }
 
-    const previousRun = await getLatestRunForSession(agentId, sessionId, { excludeRunId: runId });
-    const previousRawUsage = readRawUsageTotals(previousRun?.usageJson);
+    const previousRuns = await db
+      .select({
+        usageJson: heartbeatRuns.usageJson,
+      })
+      .from(heartbeatRuns)
+      .where(
+        and(
+          eq(heartbeatRuns.agentId, agentId),
+          eq(heartbeatRuns.sessionIdAfter, sessionId),
+          sql`${heartbeatRuns.id} <> ${runId}`,
+        ),
+      )
+      .orderBy(desc(heartbeatRuns.createdAt))
+      .limit(25);
+    const previousRawUsage = findLatestRawUsageTotalsFromRuns(
+      previousRuns.map((row) => row.usageJson),
+    );
     return {
       normalizedUsage: deriveNormalizedUsageDelta(rawUsage, previousRawUsage),
       previousRawUsage,

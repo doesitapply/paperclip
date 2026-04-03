@@ -5,6 +5,7 @@ import {
   agents,
   companies,
   createDb,
+  heartbeatRuns,
   issueComments,
   issueInboxArchives,
   issues,
@@ -40,6 +41,7 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
     await db.delete(issueInboxArchives);
     await db.delete(activityLog);
     await db.delete(issues);
+    await db.delete(heartbeatRuns);
     await db.delete(agents);
     await db.delete(companies);
   });
@@ -217,6 +219,228 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
     });
 
     expect(result.map((issue) => issue.id)).toEqual([matchedIssueId]);
+  });
+
+  it("clears execution metadata when an issue is moved to done", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const runId = randomUUID();
+    const issueId = randomUUID();
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "CodexCoder",
+      role: "engineer",
+      status: "active",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      companyId,
+      agentId,
+      invocationSource: "on_demand",
+      status: "running",
+      startedAt: new Date("2026-04-03T18:00:00.000Z"),
+      createdAt: new Date("2026-04-03T18:00:00.000Z"),
+      updatedAt: new Date("2026-04-03T18:00:00.000Z"),
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Execution metadata should clear on completion",
+      status: "in_progress",
+      priority: "medium",
+      assigneeAgentId: agentId,
+      checkoutRunId: runId,
+      executionRunId: runId,
+      executionAgentNameKey: "CodexCoder",
+      executionLockedAt: new Date("2026-04-03T18:01:00.000Z"),
+    });
+
+    const updated = await svc.update(issueId, { status: "done" });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.status).toBe("done");
+    expect(updated?.checkoutRunId).toBeNull();
+    expect(updated?.executionRunId).toBeNull();
+    expect(updated?.executionAgentNameKey).toBeNull();
+    expect(updated?.executionLockedAt).toBeNull();
+    expect(updated?.completedAt).not.toBeNull();
+  });
+
+  it("clears execution metadata when releasing an issue back to todo", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const runId = randomUUID();
+    const issueId = randomUUID();
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "CodexCoder",
+      role: "engineer",
+      status: "active",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      companyId,
+      agentId,
+      invocationSource: "on_demand",
+      status: "running",
+      startedAt: new Date("2026-04-03T18:00:00.000Z"),
+      createdAt: new Date("2026-04-03T18:00:00.000Z"),
+      updatedAt: new Date("2026-04-03T18:00:00.000Z"),
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Execution metadata should clear on release",
+      status: "in_progress",
+      priority: "medium",
+      assigneeAgentId: agentId,
+      checkoutRunId: runId,
+      executionRunId: runId,
+      executionAgentNameKey: "CodexCoder",
+      executionLockedAt: new Date("2026-04-03T18:01:00.000Z"),
+    });
+
+    const updated = await svc.release(issueId, agentId, runId);
+
+    expect(updated).not.toBeNull();
+    expect(updated?.status).toBe("todo");
+    expect(updated?.assigneeAgentId).toBeNull();
+    expect(updated?.checkoutRunId).toBeNull();
+    expect(updated?.executionRunId).toBeNull();
+    expect(updated?.executionAgentNameKey).toBeNull();
+    expect(updated?.executionLockedAt).toBeNull();
+  });
+
+  it("keeps direct fetch and list reads consistent after checkout and completion", async () => {
+    const companyId = randomUUID();
+    const agentId = randomUUID();
+    const runId = randomUUID();
+    const issueId = randomUUID();
+
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+
+    await db.insert(agents).values({
+      id: agentId,
+      companyId,
+      name: "CodexCoder",
+      role: "engineer",
+      status: "active",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: {},
+      permissions: {},
+    });
+
+    await db.insert(heartbeatRuns).values({
+      id: runId,
+      companyId,
+      agentId,
+      invocationSource: "on_demand",
+      status: "running",
+      startedAt: new Date("2026-04-03T18:00:00.000Z"),
+      createdAt: new Date("2026-04-03T18:00:00.000Z"),
+      updatedAt: new Date("2026-04-03T18:00:00.000Z"),
+    });
+
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Sequential reads should stay consistent",
+      status: "todo",
+      priority: "medium",
+    });
+
+    const checkedOut = await svc.checkout(issueId, agentId, ["todo"], runId);
+    const fetchedAfterCheckout = await svc.getById(issueId);
+    const listedAfterCheckout = await svc.list(companyId, { assigneeAgentId: agentId, status: "in_progress" });
+
+    expect(checkedOut).not.toBeNull();
+    expect(checkedOut?.status).toBe("in_progress");
+    expect(checkedOut?.checkoutRunId).toBe(runId);
+    expect(checkedOut?.executionRunId).toBe(runId);
+    expect(fetchedAfterCheckout).toMatchObject({
+      id: issueId,
+      status: "in_progress",
+      assigneeAgentId: agentId,
+      checkoutRunId: runId,
+      executionRunId: runId,
+    });
+    expect(listedAfterCheckout).toContainEqual(
+      expect.objectContaining({
+        id: issueId,
+        status: "in_progress",
+        assigneeAgentId: agentId,
+        checkoutRunId: runId,
+        executionRunId: runId,
+      }),
+    );
+
+    const completed = await svc.update(issueId, { status: "done" });
+    const fetchedAfterCompletion = await svc.getById(issueId);
+    const listedAfterCompletion = await svc.list(companyId, { status: "done" });
+
+    expect(completed).not.toBeNull();
+    expect(completed).toMatchObject({
+      id: issueId,
+      status: "done",
+      checkoutRunId: null,
+      executionRunId: null,
+      executionAgentNameKey: null,
+      executionLockedAt: null,
+    });
+    expect(fetchedAfterCompletion).toMatchObject({
+      id: issueId,
+      status: "done",
+      checkoutRunId: null,
+      executionRunId: null,
+      executionAgentNameKey: null,
+      executionLockedAt: null,
+    });
+    expect(listedAfterCompletion).toContainEqual(
+      expect.objectContaining({
+        id: issueId,
+        status: "done",
+        checkoutRunId: null,
+        executionRunId: null,
+        executionAgentNameKey: null,
+        executionLockedAt: null,
+      }),
+    );
   });
 
   it("hides archived inbox issues until new external activity arrives", async () => {

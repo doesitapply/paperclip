@@ -56,3 +56,5 @@ export { pluginEntities } from "./plugin_entities.js";
 export { pluginJobs, pluginJobRuns } from "./plugin_jobs.js";
 export { pluginWebhookDeliveries } from "./plugin_webhooks.js";
 export { pluginLogs } from "./plugin_logs.js";
+export { closedLoopCalls } from "./closed_loop_calls.js";
+export { callExecutionAttempts } from "./call_execution_attempts.js";

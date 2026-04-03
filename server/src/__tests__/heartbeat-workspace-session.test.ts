@@ -4,6 +4,7 @@ import { sessionCodec as codexSessionCodec } from "@paperclipai/adapter-codex-lo
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import {
   buildExplicitResumeSessionOverride,
+  findLatestRawUsageTotalsFromRuns,
   formatRuntimeWorkspaceWarningLog,
   prioritizeProjectWorkspaceCandidatesForRun,
   parseSessionCompactionPolicy,
@@ -232,6 +233,33 @@ describe("buildExplicitResumeSessionOverride", () => {
         sessionId: "session-after",
       },
     });
+  });
+});
+
+describe("findLatestRawUsageTotalsFromRuns", () => {
+  it("skips runs without raw usage and falls back to the latest usable session baseline", () => {
+    const result = findLatestRawUsageTotalsFromRuns([
+      null,
+      { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+      { rawInputTokens: 120, rawCachedInputTokens: 30, rawOutputTokens: 4 },
+      { rawInputTokens: 80, rawCachedInputTokens: 10, rawOutputTokens: 2 },
+    ]);
+
+    expect(result).toEqual({
+      inputTokens: 120,
+      cachedInputTokens: 30,
+      outputTokens: 4,
+    });
+  });
+
+  it("returns null when no prior run contains raw usage totals", () => {
+    const result = findLatestRawUsageTotalsFromRuns([
+      null,
+      {},
+      { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+    ]);
+
+    expect(result).toBeNull();
   });
 });
 

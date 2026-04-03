@@ -93,7 +93,7 @@ describe("doctor", () => {
     });
 
     expect(summary.failed).toBe(0);
-    expect(summary.warned).toBe(0);
+    expect(summary.warned).toBe(1);
     expect(process.env.PAPERCLIP_AGENT_JWT_SECRET).toBeTruthy();
   });
 });

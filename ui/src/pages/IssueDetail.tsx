@@ -3,6 +3,7 @@ import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { Link, useLocation, useNavigate, useParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
+import { approvalsApi } from "../api/approvals";
 import { activityApi } from "../api/activity";
 import { heartbeatsApi } from "../api/heartbeats";
 import { agentsApi } from "../api/agents";
@@ -23,6 +24,7 @@ import { IssueDocumentsSection } from "../components/IssueDocumentsSection";
 import { IssueProperties } from "../components/IssueProperties";
 import { IssueWorkspaceCard } from "../components/IssueWorkspaceCard";
 import { LiveRunWidget } from "../components/LiveRunWidget";
+import { WorkProductList } from "../components/WorkProductList";
 import type { MentionOption } from "../components/MarkdownEditor";
 import { ScrollToBottom } from "../components/ScrollToBottom";
 import { StatusIcon } from "../components/StatusIcon";
@@ -49,6 +51,7 @@ import {
   ListTree,
   MessageSquare,
   MoreHorizontal,
+  Package,
   Paperclip,
   Repeat,
   SlidersHorizontal,
@@ -469,6 +472,18 @@ export function IssueDetail() {
     }
   };
 
+  const invalidateApprovalState = (approvalId: string) => {
+    invalidateIssue();
+    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.detail(approvalId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.issues(approvalId) });
+    if (selectedCompanyId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId, "pending") });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.org(selectedCompanyId) });
+    }
+  };
+
   const markIssueRead = useMutation({
     mutationFn: (id: string) => issuesApi.markRead(id),
     onSuccess: () => {
@@ -489,8 +504,8 @@ export function IssueDetail() {
   });
 
   const addComment = useMutation({
-    mutationFn: ({ body, reopen }: { body: string; reopen?: boolean }) =>
-      issuesApi.addComment(issueId!, body, reopen),
+    mutationFn: ({ body, reopen, interrupt }: { body: string; reopen?: boolean; interrupt?: boolean }) =>
+      issuesApi.addComment(issueId!, body, reopen, interrupt),
     onSuccess: () => {
       invalidateIssue();
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(issueId!) });
@@ -516,6 +531,34 @@ export function IssueDetail() {
     onSuccess: () => {
       invalidateIssue();
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(issueId!) });
+    },
+  });
+
+  const approveLinkedApproval = useMutation({
+    mutationFn: (approvalId: string) => approvalsApi.approve(approvalId),
+    onSuccess: (_approval, approvalId) => {
+      invalidateApprovalState(approvalId);
+      pushToast({ title: "Approval approved", tone: "success" });
+    },
+    onError: (err) => {
+      pushToast({
+        title: err instanceof Error ? err.message : "Approve failed",
+        tone: "error",
+      });
+    },
+  });
+
+  const rejectLinkedApproval = useMutation({
+    mutationFn: (approvalId: string) => approvalsApi.reject(approvalId),
+    onSuccess: (_approval, approvalId) => {
+      invalidateApprovalState(approvalId);
+      pushToast({ title: "Approval rejected", tone: "success" });
+    },
+    onError: (err) => {
+      pushToast({
+        title: err instanceof Error ? err.message : "Reject failed",
+        tone: "error",
+      });
     },
   });
 
@@ -1012,6 +1055,10 @@ export function IssueDetail() {
             <ListTree className="h-3.5 w-3.5" />
             Sub-issues
           </TabsTrigger>
+          <TabsTrigger value="work-products" className="gap-1.5">
+            <Package className="h-3.5 w-3.5" />
+            Work Product
+          </TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5">
             <ActivityIcon className="h-3.5 w-3.5" />
             Activity
@@ -1036,13 +1083,23 @@ export function IssueDetail() {
             reassignOptions={commentReassignOptions}
             currentAssigneeValue={actualAssigneeValue}
             suggestedAssigneeValue={suggestedAssigneeValue}
+            assigneeName={issue.assigneeAgentId ? agentMap.get(issue.assigneeAgentId)?.name ?? null : null}
+            canInterrupt={!!activeRun && !!issue.assigneeAgentId}
             mentions={mentionOptions}
-            onAdd={async (body, reopen, reassignment) => {
-              if (reassignment) {
-                await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });
+            onAdd={async (body, options) => {
+              if (options?.reassignment) {
+                await addCommentAndReassign.mutateAsync({
+                  body,
+                  reopen: options.reopen,
+                  reassignment: options.reassignment,
+                });
                 return;
               }
-              await addComment.mutateAsync({ body, reopen });
+              await addComment.mutateAsync({
+                body,
+                reopen: options?.reopen,
+                interrupt: options?.interrupt,
+              });
             }}
             imageUploadHandler={async (file) => {
               const attachment = await uploadAttachment.mutateAsync(file);
@@ -1085,6 +1142,10 @@ export function IssueDetail() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="work-products">
+          <WorkProductList products={issue.workProducts ?? []} />
         </TabsContent>
 
         <TabsContent value="activity">
@@ -1160,10 +1221,9 @@ export function IssueDetail() {
           <CollapsibleContent>
             <div className="border-t border-border divide-y divide-border">
               {linkedApprovals.map((approval) => (
-                <Link
+                <div
                   key={approval.id}
-                  to={`/approvals/${approval.id}`}
-                  className="flex items-center justify-between px-3 py-2 text-xs hover:bg-accent/20 transition-colors"
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
                 >
                   <div className="flex items-center gap-2">
                     <StatusBadge status={approval.status} />
@@ -1172,8 +1232,39 @@ export function IssueDetail() {
                     </span>
                     <span className="font-mono text-muted-foreground">{approval.id.slice(0, 8)}</span>
                   </div>
-                  <span className="text-muted-foreground">{relativeTime(approval.createdAt)}</span>
-                </Link>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{relativeTime(approval.createdAt)}</span>
+                    {approval.type !== "budget_override_required" &&
+                      (approval.status === "pending" || approval.status === "revision_requested") && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="h-7 bg-green-700 px-2 text-[11px] text-white hover:bg-green-600"
+                            onClick={() => approveLinkedApproval.mutate(approval.id)}
+                            disabled={
+                              approveLinkedApproval.isPending || rejectLinkedApproval.isPending
+                            }
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => rejectLinkedApproval.mutate(approval.id)}
+                            disabled={
+                              approveLinkedApproval.isPending || rejectLinkedApproval.isPending
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" asChild>
+                      <Link to={`/approvals/${approval.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           </CollapsibleContent>

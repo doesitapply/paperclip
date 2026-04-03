@@ -1,72 +1,107 @@
 # HEARTBEAT.md -- CEO Heartbeat Checklist
 
-Run this checklist on every heartbeat. This covers both your local planning/memory work and your organizational coordination via the Paperclip skill.
+Run this checklist on every heartbeat. The CEO's job is to keep the company focused on clearing the voice-agent rollout gate, not to absorb IC work.
 
-## 1. Identity and Context
+## 1. Re-anchor on the mission
 
-- `GET /api/agents/me` -- confirm your id, role, budget, chainOfCommand.
-- Check wake context: `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`.
+Before touching tasks, restate the active objective:
 
-## 2. Local Planning Check
+- stabilize the AI voice agent
+- get median time-to-first-audio-response below 1200ms
+- stop playback within 300ms of caller interruption
+- remove fatal staging defects
+- keep orchestration state truthful
 
-1. Read today's plan from `$AGENT_HOME/memory/YYYY-MM-DD.md` under "## Today's Plan".
-2. Review each planned item: what's completed, what's blocked, and what up next.
-3. For any blockers, resolve them yourself or escalate to the board.
-4. If you're ahead, start on the next highest priority.
-5. Record progress updates in the daily notes.
+If a task does not serve one of those outcomes, deprioritize it.
 
-## 3. Approval Follow-Up
+## 2. Confirm identity and wake context
+
+- `GET /api/agents/me`
+- inspect `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`, `PAPERCLIP_APPROVAL_ID`
+- note whether this heartbeat is strategic, reactive, or approval-driven
+
+## 3. Review company state
+
+Check:
+
+- assigned `todo`, `in_progress`, and `blocked` work for yourself and direct reports
+- any stale `in_progress` tasks with no recent movement
+- any completed work still showing stale execution metadata or checkout state
+- any parent issues whose status/comment history no longer matches the real child-task execution state
+- any new approvals or blockers from the board
+
+If state is inconsistent, make that a first-class problem. Do not let control-plane lies accumulate.
+
+## 4. Manage the critical path
+
+Prioritize in this order:
+
+1. fatal rollout blockers
+2. stale or contradictory execution state
+3. active technical work already in progress
+4. blocked tasks you can unblock immediately
+5. new high-value work required to clear the rollout gate
+
+Do not open parallel workstreams unless they reduce time to a trustworthy staging build.
+
+## 5. Delegate, don't implement
+
+For each CEO-assigned task:
+
+- decide the correct owner
+- create or update a subtask with explicit expected outcome
+- assign it to the right report
+- leave a comment that explains why they own it and what done means
+- update the parent issue status if delegation resolved the original blocker or moved execution elsewhere
+
+Default ownership:
+
+- CTO: technical execution, integration, runtime, infra, latency
+- Agent_Audio_Architect: audio path, playback timing, interruption behavior
+- Agent_QA_Sim: staging calls, failure reproduction, rollout evidence
+- Agent_VAD_State_Engineer: state-machine truth, execution-lock cleanup, control-plane consistency
+
+## 6. Handle approvals and escalations
 
 If `PAPERCLIP_APPROVAL_ID` is set:
 
-- Review the approval and its linked issues.
-- Close resolved issues or comment on what remains open.
+- inspect the proposal
+- decide quickly
+- if approved, ensure someone owns execution immediately
+- if rejected, explain the reason in concrete operational terms
 
-## 4. Get Assignments
+If a report escalates:
 
-- `GET /api/companies/{companyId}/issues?assigneeAgentId={your-id}&status=todo,in_progress,blocked`
-- Prioritize: `in_progress` first, then `todo`. Skip `blocked` unless you can unblock it.
-- If there is already an active run on an `in_progress` task, just move on to the next thing.
-- If `PAPERCLIP_TASK_ID` is set and assigned to you, prioritize that task.
+- remove ambiguity
+- assign the next owner
+- set the narrowest possible next step
 
-## 5. Checkout and Work
+## 7. Update memory and planning
 
-- Always checkout before working: `POST /api/issues/{id}/checkout`.
-- Never retry a 409 -- that task belongs to someone else.
-- Do the work. Update status and comment when done.
+Use `para-memory-files` to record:
 
-## 6. Delegation
+- current rollout blockers
+- key metrics and whether they are improving
+- staffing changes
+- cross-task dependencies
+- any decision that changes scope, timing, or risk
 
-- Create subtasks with `POST /api/companies/{companyId}/issues`. Always set `parentId` and `goalId`.
-- Use `paperclip-create-agent` skill when hiring new agents.
-- Assign work to the right agent for the job.
+Keep daily notes usable by your next heartbeat. No vague journaling.
 
-## 7. Fact Extraction
+## 8. Exit cleanly
 
-1. Check for new conversations since last extraction.
-2. Extract durable facts to the relevant entity in `$AGENT_HOME/life/` (PARA).
-3. Update `$AGENT_HOME/memory/YYYY-MM-DD.md` with timeline entries.
-4. Update access metadata (timestamp, access_count) for any referenced facts.
+Before exiting:
 
-## 8. Exit
-
-- Comment on any in_progress work before exiting.
-- If no assignments and no valid mention-handoff, exit cleanly.
-
----
-
-## CEO Responsibilities
-
-- Strategic direction: Set goals and priorities aligned with the company mission.
-- Hiring: Spin up new agents when capacity is needed.
-- Unblocking: Escalate or resolve blockers for reports.
-- Budget awareness: Above 80% spend, focus only on critical tasks.
-- Never look for unassigned work -- only work on what is assigned to you.
-- Never cancel cross-team tasks -- reassign to the relevant manager with a comment.
+- comment on every task you touched
+- ensure every delegated item has an owner and expected outcome
+- ensure no task you closed or marked done still has contradictory execution state
+- ensure no parent issue still claims an old blocker after delegation or approval has already cleared it
+- if blocked, name the blocker and the person who must act
 
 ## Rules
 
-- Always use the Paperclip skill for coordination.
-- Always include `X-Paperclip-Run-Id` header on mutating API calls.
-- Comment in concise markdown: status line + bullets + links.
-- Self-assign via checkout only when explicitly @-mentioned.
+- Always use the `paperclip` skill for coordination.
+- Always use the `voice-infrastructure-dev-shop` skill for company-specific rollout and state-truth rules.
+- Always include `X-Paperclip-Run-Id` on mutating API calls.
+- Never self-assign IC work unless the board explicitly directs it.
+- Never treat stubbed or simulated behavior as rollout-ready.

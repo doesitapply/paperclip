@@ -30,12 +30,19 @@ interface CommentReassignment {
   assigneeUserId: string | null;
 }
 
+interface CommentSubmitOptions {
+  reopen?: boolean;
+  reassignment?: CommentReassignment;
+  interrupt?: boolean;
+  directCoach?: boolean;
+}
+
 interface CommentThreadProps {
   comments: CommentWithRunMeta[];
   linkedRuns?: LinkedRunItem[];
   companyId?: string | null;
   projectId?: string | null;
-  onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment) => Promise<void>;
+  onAdd: (body: string, options?: CommentSubmitOptions) => Promise<void>;
   issueStatus?: string;
   agentMap?: Map<string, Agent>;
   imageUploadHandler?: (file: File) => Promise<string>;
@@ -48,6 +55,8 @@ interface CommentThreadProps {
   currentAssigneeValue?: string;
   suggestedAssigneeValue?: string;
   mentions?: MentionOption[];
+  assigneeName?: string | null;
+  canInterrupt?: boolean;
 }
 
 const DRAFT_DEBOUNCE_MS = 800;
@@ -270,11 +279,15 @@ export function CommentThread({
   currentAssigneeValue = "",
   suggestedAssigneeValue,
   mentions: providedMentions,
+  assigneeName,
+  canInterrupt = false,
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const [reopen, setReopen] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [attaching, setAttaching] = useState(false);
+  const [directCoach, setDirectCoach] = useState(false);
+  const [interrupt, setInterrupt] = useState(false);
   const effectiveSuggestedAssigneeValue = suggestedAssigneeValue ?? currentAssigneeValue;
   const [reassignTarget, setReassignTarget] = useState(effectiveSuggestedAssigneeValue);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
@@ -365,13 +378,28 @@ export function CommentThread({
     if (!trimmed) return;
     const hasReassignment = enableReassign && reassignTarget !== currentAssigneeValue;
     const reassignment = hasReassignment ? parseReassignment(reassignTarget) : null;
+    const finalBody = directCoach
+      ? [
+          `Direct operator coaching for ${assigneeName ?? "the assignee"}:`,
+          trimmed,
+          "",
+          "Treat this as immediate execution guidance. Reply with concrete changes, blockers, or shipped output.",
+        ].join("\n")
+      : trimmed;
 
     setSubmitting(true);
     try {
-      await onAdd(trimmed, reopen ? true : undefined, reassignment ?? undefined);
+      await onAdd(finalBody, {
+        reopen: reopen ? true : undefined,
+        reassignment: reassignment ?? undefined,
+        interrupt: canInterrupt && interrupt ? true : undefined,
+        directCoach,
+      });
       setBody("");
       if (draftKey) clearDraft(draftKey);
       setReopen(true);
+      setDirectCoach(false);
+      setInterrupt(false);
       setReassignTarget(effectiveSuggestedAssigneeValue);
     } finally {
       setSubmitting(false);
@@ -418,7 +446,11 @@ export function CommentThread({
           ref={editorRef}
           value={body}
           onChange={setBody}
-          placeholder="Leave a comment..."
+          placeholder={
+            directCoach
+              ? `Coach ${assigneeName ?? "the assignee"} directly. Be explicit about what to change.`
+              : "Leave a comment..."
+          }
           mentions={mentions}
           onSubmit={handleSubmit}
           imageUploadHandler={imageUploadHandler}
@@ -444,6 +476,26 @@ export function CommentThread({
                 <Paperclip className="h-4 w-4" />
               </Button>
             </div>
+          )}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={directCoach}
+              onChange={(e) => setDirectCoach(e.target.checked)}
+              className="rounded border-border"
+            />
+            Coach agent
+          </label>
+          {canInterrupt && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={interrupt}
+                onChange={(e) => setInterrupt(e.target.checked)}
+                className="rounded border-border"
+              />
+              Interrupt active run
+            </label>
           )}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
             <input
@@ -493,7 +545,7 @@ export function CommentThread({
             />
           )}
           <Button size="sm" disabled={!canSubmit} onClick={handleSubmit}>
-            {submitting ? "Posting..." : "Comment"}
+            {submitting ? "Posting..." : directCoach ? "Send to agent" : "Comment"}
           </Button>
         </div>
       </div>

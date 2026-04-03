@@ -134,6 +134,10 @@ export {
   type PluginBridgeErrorCode,
 } from "./constants.js";
 
+export * from "./phone-loop.js";
+export * from "./decision-engine.js";
+export * from "./phone-loop-runner.js";
+
 export type {
   Company,
   CompanySkillSourceType,

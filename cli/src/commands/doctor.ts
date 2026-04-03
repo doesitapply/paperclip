@@ -10,6 +10,7 @@ import {
   llmCheck,
   logCheck,
   portCheck,
+  runtimeCheck,
   secretsCheck,
   storageCheck,
   type CheckResult,
@@ -35,7 +36,16 @@ export async function doctor(opts: {
   loadPaperclipEnvFile(configPath);
   const results: CheckResult[] = [];
 
-  // 1. Config check (must pass before others)
+  // 1. Runtime/toolchain compatibility
+  const runtimeResult = runtimeCheck();
+  results.push(runtimeResult);
+  printResult(runtimeResult);
+
+  if (runtimeResult.status === "fail") {
+    return printSummary(results);
+  }
+
+  // 2. Config check (must pass before others)
   const cfgResult = configCheck(opts.config);
   results.push(cfgResult);
   printResult(cfgResult);
@@ -60,12 +70,12 @@ export async function doctor(opts: {
     return printSummary(results);
   }
 
-  // 2. Deployment/auth mode check
+  // 3. Deployment/auth mode check
   const deploymentAuthResult = deploymentAuthCheck(config);
   results.push(deploymentAuthResult);
   printResult(deploymentAuthResult);
 
-  // 3. Agent JWT check
+  // 4. Agent JWT check
   results.push(
     await runRepairableCheck({
       run: () => agentJwtSecretCheck(opts.config),
@@ -74,7 +84,7 @@ export async function doctor(opts: {
     }),
   );
 
-  // 4. Secrets adapter check
+  // 5. Secrets adapter check
   results.push(
     await runRepairableCheck({
       run: () => secretsCheck(config, configPath),
@@ -83,7 +93,7 @@ export async function doctor(opts: {
     }),
   );
 
-  // 5. Storage check
+  // 6. Storage check
   results.push(
     await runRepairableCheck({
       run: () => storageCheck(config, configPath),
@@ -92,7 +102,7 @@ export async function doctor(opts: {
     }),
   );
 
-  // 6. Database check
+  // 7. Database check
   results.push(
     await runRepairableCheck({
       run: () => databaseCheck(config, configPath),
@@ -101,12 +111,12 @@ export async function doctor(opts: {
     }),
   );
 
-  // 7. LLM check
+  // 8. LLM check
   const llmResult = await llmCheck(config);
   results.push(llmResult);
   printResult(llmResult);
 
-  // 8. Log directory check
+  // 9. Log directory check
   results.push(
     await runRepairableCheck({
       run: () => logCheck(config, configPath),
@@ -115,7 +125,7 @@ export async function doctor(opts: {
     }),
   );
 
-  // 9. Port check
+  // 10. Port check
   const portResult = await portCheck(config);
   results.push(portResult);
   printResult(portResult);
