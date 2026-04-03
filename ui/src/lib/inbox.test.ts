@@ -169,6 +169,12 @@ function makeIssue(id: string, isUnreadForMe: boolean): Issue {
 
 const dashboard: DashboardSummary = {
   companyId: "company-1",
+  company: {
+    name: "Voice Infrastructure Dev Shop",
+    status: "active",
+    issuePrefix: "VOI",
+    brandColor: null,
+  },
   agents: {
     active: 1,
     running: 0,
@@ -192,6 +198,37 @@ const dashboard: DashboardSummary = {
     pendingApprovals: 0,
     pausedAgents: 0,
     pausedProjects: 0,
+  },
+  voiceOps: {
+    callsLast7d: 3,
+    booked: 1,
+    followUpSent: 1,
+    taskCreated: 1,
+    escalated: 0,
+    disqualified: 0,
+    liveExecutions: 2,
+    stubExecutions: 1,
+    lastCallAt: "2026-03-11T01:00:00.000Z",
+  },
+  integrations: {
+    twilioVoice: {
+      configured: true,
+      live: true,
+      fromPhone: "+17754203005",
+    },
+    twilioSms: {
+      configured: true,
+      live: true,
+      fromPhone: "+17754203005",
+    },
+    googleCalendar: {
+      configured: false,
+      live: false,
+    },
+    openai: {
+      configured: true,
+      live: true,
+    },
   },
 };
 

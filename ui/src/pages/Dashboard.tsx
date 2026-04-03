@@ -20,7 +20,7 @@ import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, PauseCircle } from "lucide-react";
+import { Bot, CalendarClock, CircleDot, DollarSign, PhoneCall, PlugZap, ShieldCheck, LayoutDashboard, PauseCircle, Send, SquareCheckBig } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -30,6 +30,35 @@ import { PluginSlotOutlet } from "@/plugins/slots";
 function getRecentIssues(issues: Issue[]): Issue[] {
   return [...issues]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+function IntegrationPill({
+  label,
+  configured,
+  detail,
+}: {
+  label: string;
+  configured: boolean;
+  detail?: string | null;
+}) {
+  return (
+    <div className="rounded-lg border border-border/80 bg-background/60 px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{label}</span>
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+            configured
+              ? "bg-emerald-500/15 text-emerald-300"
+              : "bg-amber-500/15 text-amber-300",
+          )}
+        >
+          {configured ? "live" : "needs setup"}
+        </span>
+      </div>
+      {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+    </div>
+  );
 }
 
 export function Dashboard() {
@@ -211,6 +240,50 @@ export function Dashboard() {
 
       {data && (
         <>
+          <section className="rounded-2xl border border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_28%)] px-5 py-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  <SquareCheckBig className="h-3.5 w-3.5" />
+                  Voice Ops Control
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {data.company.name}
+                </h1>
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  Run the phones like an operator, not a demo. This dashboard tracks whether calls are turning into outcomes,
+                  whether your integrations are actually live, and whether the control plane is telling the truth.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <MetricCard
+                  icon={PhoneCall}
+                  value={data.voiceOps.callsLast7d}
+                  label="Calls (7d)"
+                  description="Closed-loop outcomes recorded"
+                />
+                <MetricCard
+                  icon={Send}
+                  value={data.voiceOps.followUpSent}
+                  label="Texts Sent"
+                  description={`${data.voiceOps.liveExecutions} live execution attempts`}
+                />
+                <MetricCard
+                  icon={CalendarClock}
+                  value={data.voiceOps.booked}
+                  label="Booked"
+                  description={data.voiceOps.lastCallAt ? `Last call ${timeAgo(data.voiceOps.lastCallAt)}` : "No calls yet"}
+                />
+                <MetricCard
+                  icon={CircleDot}
+                  value={data.voiceOps.taskCreated}
+                  label="Callback Tasks"
+                  description={`${data.voiceOps.stubExecutions} stub attempts still remaining`}
+                />
+              </div>
+            </div>
+          </section>
+
           {data.budgets.activeIncidents > 0 ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-[linear-gradient(180deg,rgba(255,80,80,0.12),rgba(255,255,255,0.02))] px-4 py-3">
               <div className="flex items-start gap-2.5">
@@ -282,6 +355,63 @@ export function Dashboard() {
                 </span>
               }
             />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+            <div className="rounded-xl border border-border p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Outcome Engine</h3>
+                  <p className="text-xs text-muted-foreground/80">
+                    What the phone system actually produced in the last 7 days.
+                  </p>
+                </div>
+                <Link to="/issues" className="text-xs underline underline-offset-2 text-muted-foreground">
+                  Open work queue
+                </Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <MetricCard icon={CalendarClock} value={data.voiceOps.booked} label="Booked" />
+                <MetricCard icon={Send} value={data.voiceOps.followUpSent} label="Follow-up Sent" />
+                <MetricCard icon={CircleDot} value={data.voiceOps.taskCreated} label="Task Created" />
+                <MetricCard icon={PhoneCall} value={data.voiceOps.escalated} label="Escalated" />
+                <MetricCard icon={ShieldCheck} value={data.voiceOps.disqualified} label="Disqualified" />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Integrations</h3>
+                  <p className="text-xs text-muted-foreground/80">
+                    Professional quality means the pipes are actually live.
+                  </p>
+                </div>
+                <PlugZap className="h-4 w-4 text-muted-foreground/70" />
+              </div>
+              <div className="grid gap-3">
+                <IntegrationPill
+                  label="Twilio Voice"
+                  configured={data.integrations.twilioVoice.live}
+                  detail={data.integrations.twilioVoice.fromPhone ? `From ${data.integrations.twilioVoice.fromPhone}` : "Outbound voice path is not configured"}
+                />
+                <IntegrationPill
+                  label="Twilio SMS"
+                  configured={data.integrations.twilioSms.live}
+                  detail={data.integrations.twilioSms.fromPhone ? `From ${data.integrations.twilioSms.fromPhone}` : "Follow-up texting is not configured"}
+                />
+                <IntegrationPill
+                  label="Google Calendar"
+                  configured={data.integrations.googleCalendar.live}
+                  detail={data.integrations.googleCalendar.live ? "Booking integrations can be made real" : "Calendar booking is still disconnected"}
+                />
+                <IntegrationPill
+                  label="OpenAI"
+                  configured={data.integrations.openai.live}
+                  detail={data.integrations.openai.live ? "Model-backed flows available" : "Model credentials are not production-ready"}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

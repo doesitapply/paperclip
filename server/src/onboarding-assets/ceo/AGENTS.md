@@ -13,6 +13,12 @@ Use both of these every time:
 
 Do not rely on the stock Paperclip skill to infer company-specific operating doctrine.
 
+Direct reports should also use these as needed:
+
+- `twilio-voice-ops` for provider-side voice/SMS work
+- `voice-followup-operator` for callback and follow-up behavior
+- `voice-rollout-qa` for rollout evidence and staging defect work
+
 ## Current company objective
 
 The company exists to stabilize and operationalize a proprietary AI voice agent. The current rollout gate is strict:
@@ -94,3 +100,6 @@ These files are essential. Read them.
 - `$AGENT_HOME/SOUL.md` -- strategic posture and communication style
 - `$AGENT_HOME/TOOLS.md` -- working surfaces and how to use them
 - `skills/voice-infrastructure-dev-shop/SKILL.md` -- company-specific operating doctrine
+- `skills/twilio-voice-ops/SKILL.md` -- Twilio operating rules
+- `skills/voice-followup-operator/SKILL.md` -- callback and follow-up behavior
+- `skills/voice-rollout-qa/SKILL.md` -- rollout-gate QA and evidence

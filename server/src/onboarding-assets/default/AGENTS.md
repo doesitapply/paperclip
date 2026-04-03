@@ -14,6 +14,12 @@ Use the bundled `paperclip` skill for heartbeat/API coordination and the
 not assume the stock Paperclip skill knows this company's rollout gate,
 specialist routing, or truthfulness standards on its own.
 
+Reach for these additional company skills when the task matches them:
+
+- `twilio-voice-ops` for Twilio wiring, proof calls, SMS sends, and provider debugging
+- `voice-followup-operator` for callbacks, missed-call recovery, task creation, and closed-loop follow-up
+- `voice-rollout-qa` for staging validation, latency evidence, and rollout-gate truth
+
 ## What matters
 
 - Every assigned task must move the voice system toward a measurable operational outcome.
