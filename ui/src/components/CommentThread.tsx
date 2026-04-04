@@ -287,6 +287,7 @@ export function CommentThread({
   const [submitting, setSubmitting] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [directCoach, setDirectCoach] = useState(false);
+  const [requireResponse, setRequireResponse] = useState(true);
   const [interrupt, setInterrupt] = useState(false);
   const effectiveSuggestedAssigneeValue = suggestedAssigneeValue ?? currentAssigneeValue;
   const [reassignTarget, setReassignTarget] = useState(effectiveSuggestedAssigneeValue);
@@ -385,7 +386,13 @@ export function CommentThread({
           "",
           "Treat this as immediate execution guidance. Reply with concrete changes, blockers, or shipped output.",
         ].join("\n")
-      : trimmed;
+      : requireResponse
+        ? [
+            trimmed,
+            "",
+            "Please respond directly in this issue thread and address the latest operator comment concretely.",
+          ].join("\n")
+        : trimmed;
 
     setSubmitting(true);
     try {
@@ -399,6 +406,7 @@ export function CommentThread({
       if (draftKey) clearDraft(draftKey);
       setReopen(true);
       setDirectCoach(false);
+      setRequireResponse(true);
       setInterrupt(false);
       setReassignTarget(effectiveSuggestedAssigneeValue);
     } finally {
@@ -456,6 +464,46 @@ export function CommentThread({
           imageUploadHandler={imageUploadHandler}
           contentClassName="min-h-[60px] text-sm"
         />
+        {assigneeName ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-full border border-border bg-accent/30 px-3 py-1 text-[11px] text-muted-foreground transition hover:border-primary/30 hover:bg-primary/10 hover:text-foreground"
+              onClick={() => {
+                setDirectCoach(true);
+                setRequireResponse(true);
+                setBody((prev) => prev || "Reply to my last comment with what changed, what is blocked, and what you shipped.");
+                editorRef.current?.focus();
+              }}
+            >
+              Ask {assigneeName} to reply
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-border bg-accent/30 px-3 py-1 text-[11px] text-muted-foreground transition hover:border-primary/30 hover:bg-primary/10 hover:text-foreground"
+              onClick={() => {
+                setDirectCoach(true);
+                setRequireResponse(true);
+                setBody((prev) => prev || "Explain the blocker, who owns it, and the fastest next action.");
+                editorRef.current?.focus();
+              }}
+            >
+              Ask for blocker summary
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-border bg-accent/30 px-3 py-1 text-[11px] text-muted-foreground transition hover:border-primary/30 hover:bg-primary/10 hover:text-foreground"
+              onClick={() => {
+                setDirectCoach(true);
+                setRequireResponse(true);
+                setBody((prev) => prev || "Ship the next concrete step and report back in this thread.");
+                editorRef.current?.focus();
+              }}
+            >
+              Push next step
+            </button>
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-3">
           {(imageUploadHandler || onAttachImage) && (
             <div className="mr-auto flex items-center gap-3">
@@ -485,6 +533,15 @@ export function CommentThread({
               className="rounded border-border"
             />
             Coach agent
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={requireResponse}
+              onChange={(e) => setRequireResponse(e.target.checked)}
+              className="rounded border-border"
+            />
+            Require reply
           </label>
           {canInterrupt && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
